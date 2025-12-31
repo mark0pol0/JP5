@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "buildCommand": "cd joker-pursuit && npm install && npm run build",
+  "outputDirectory": "joker-pursuit/build",
+  "installCommand": "cd joker-pursuit && npm install",
+  "devCommand": "cd joker-pursuit && npm start",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/joker-pursuit/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/joker-pursuit/build/index.html"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/games/create",
+      "dest": "/joker-pursuit/api/games/create.ts"
+    },
+    {
+      "src": "/api/games/join",
+      "dest": "/joker-pursuit/api/games/join.ts"
+    },
+    {
+      "src": "/api/games/move",
+      "dest": "/joker-pursuit/api/games/move.ts"
+    },
+    {
+      "src": "/api/games/list",
+      "dest": "/joker-pursuit/api/games/list.ts"
+    },
+    {
+      "src": "/api/games/([^/]+)",
+      "dest": "/joker-pursuit/api/games/[id].ts"
+    }
+  ],
+  "functions": {
+    "joker-pursuit/api/**/*.ts": {
+      "runtime": "@vercel/node@3.0.0"
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}

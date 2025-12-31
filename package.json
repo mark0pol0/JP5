@@ -1,0 +1,14 @@
+{
+  "name": "jp5",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd joker-pursuit && npm start",
+    "build": "cd joker-pursuit && npm install && npm run build",
+    "start": "cd joker-pursuit && npm start",
+    "install": "cd joker-pursuit && npm install"
+  },
+  "workspaces": [
+    "joker-pursuit"
+  ]
+}
