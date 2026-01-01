@@ -3,6 +3,9 @@ import './App.css';
 import GameController from './components/Game/GameController';
 import HomeMenu from './components/HomeMenu/HomeMenu';
 import SetupScreen from './components/SetupScreen/SetupScreen';
+import MultiplayerLobby from './components/MultiplayerLobby';
+import WaitingRoom from './components/WaitingRoom';
+import { gameApi } from './services/gameApi';
 
 // Available colors for player selection
 const PLAYER_COLORS = [
@@ -16,7 +19,14 @@ const PLAYER_COLORS = [
   { name: 'Orange', value: '#FF8C33' }
 ];
 
-type GamePhase = 'home' | 'setup' | 'playing';
+type GamePhase = 'home' | 'setup' | 'playing' | 'lobby' | 'waiting';
+
+interface MultiplayerState {
+  gameId: string;
+  playerName: string;
+  isHost: boolean;
+  players: { id: string; name: string }[];
+}
 
 const App: React.FC = () => {
   const [gamePhase, setGamePhase] = useState<GamePhase>('home');
@@ -30,6 +40,8 @@ const App: React.FC = () => {
     'player-2': PLAYER_COLORS[1].value
   });
   const [teamMode, setTeamMode] = useState<boolean>(false);
+  const [isMultiplayer, setIsMultiplayer] = useState<boolean>(false);
+  const [multiplayerState, setMultiplayerState] = useState<MultiplayerState | null>(null);
 
   const addPlayer = () => {
     if (playerNames.length < 8) {
@@ -88,10 +100,73 @@ const App: React.FC = () => {
     setTeamMode(!teamMode);
   };
 
+  // Multiplayer handlers
+  const handlePlayOnline = () => {
+    setGamePhase('lobby');
+  };
+
+  const handleGameCreated = (gameId: string, playerName: string) => {
+    setMultiplayerState({
+      gameId,
+      playerName,
+      isHost: true,
+      players: [{ id: 'player-1', name: playerName }],
+    });
+    setIsMultiplayer(true);
+    setGamePhase('waiting');
+  };
+
+  const handleGameJoined = (gameId: string, playerName: string) => {
+    setMultiplayerState({
+      gameId,
+      playerName,
+      isHost: false,
+      players: [],
+    });
+    setIsMultiplayer(true);
+    setGamePhase('waiting');
+  };
+
+  const handleMultiplayerGameStart = (gameState: any, players: { id: string; name: string }[]) => {
+    // Set up the player data for the game
+    const names = players.map((p) => p.name);
+    const teams: Record<string, number> = {};
+    const colors: Record<string, string> = {};
+
+    players.forEach((player, index) => {
+      const playerId = `player-${index + 1}`;
+      teams[playerId] = index % 2;
+      colors[playerId] = PLAYER_COLORS[index % PLAYER_COLORS.length].value;
+    });
+
+    setPlayerNames(names);
+    setPlayerTeams(teams);
+    setPlayerColors(colors);
+    setMultiplayerState((prev) => prev ? { ...prev, players } : null);
+    setGamePhase('playing');
+  };
+
+  const handleLeaveMultiplayer = () => {
+    gameApi.clearSession();
+    setMultiplayerState(null);
+    setIsMultiplayer(false);
+    setGamePhase('home');
+  };
+
+  const handleBackToHome = () => {
+    gameApi.clearSession();
+    setMultiplayerState(null);
+    setIsMultiplayer(false);
+    setGamePhase('home');
+  };
+
   return (
     <div className="App">
       {gamePhase === 'home' && (
-        <HomeMenu onStartGame={() => setGamePhase('setup')} />
+        <HomeMenu
+          onStartGame={() => setGamePhase('setup')}
+          onPlayOnline={handlePlayOnline}
+        />
       )}
       {gamePhase === 'setup' && (
         <SetupScreen
@@ -105,16 +180,38 @@ const App: React.FC = () => {
           onAddPlayer={addPlayer}
           onRemovePlayer={removePlayer}
           onToggleTeamMode={toggleTeamMode}
-          onStartGame={() => setGamePhase('playing')}
+          onStartGame={() => {
+            setIsMultiplayer(false);
+            setGamePhase('playing');
+          }}
           onBack={() => setGamePhase('home')}
         />
       )}
+      {gamePhase === 'lobby' && (
+        <MultiplayerLobby
+          onBack={handleBackToHome}
+          onGameCreated={handleGameCreated}
+          onGameJoined={handleGameJoined}
+        />
+      )}
+      {gamePhase === 'waiting' && multiplayerState && (
+        <WaitingRoom
+          gameId={multiplayerState.gameId}
+          playerName={multiplayerState.playerName}
+          isHost={multiplayerState.isHost}
+          onGameStart={handleMultiplayerGameStart}
+          onLeave={handleLeaveMultiplayer}
+        />
+      )}
       {gamePhase === 'playing' && (
-        <GameController 
+        <GameController
           playerNames={playerNames}
           playerTeams={playerTeams}
           playerColors={playerColors}
           numBoardSections={playerNames.length}
+          isMultiplayer={isMultiplayer}
+          multiplayerGameId={multiplayerState?.gameId}
+          currentPlayerName={multiplayerState?.playerName}
         />
       )}
     </div>
