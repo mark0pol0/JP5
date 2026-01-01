@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, createInitialGameState, advanceToNextPlayer, isGameOver, shuffleAndDealCards, GamePhase, Move } from '../../models/GameState';
 import { getPossibleMoves, applyMove, findSpaceForPeg } from '../../utils/MovementUtils';
 import { BoardSpace } from '../../models/BoardModel';
@@ -8,12 +8,16 @@ import PlayerPanel from '../PlayerPanel/PlayerPanel';
 import CardHand from '../CardHand/CardHand';
 import './GameController.css';
 import { Player } from '../../models/Player';
+import { gameApi } from '../../services/gameApi';
 
 interface GameControllerProps {
   playerNames: string[];
   playerTeams: Record<string, number>;
   numBoardSections: number;
   playerColors: Record<string, string>;
+  isMultiplayer?: boolean;
+  multiplayerGameId?: string;
+  currentPlayerName?: string;
 }
 
 // Add new interface for nine card state
@@ -123,11 +127,14 @@ const Log = (message: string, ...args: any[]) => {
   console.log(`[GameController] ${message}`, ...args);
 };
 
-const GameController: React.FC<GameControllerProps> = ({ 
-  playerNames, 
+const GameController: React.FC<GameControllerProps> = ({
+  playerNames,
   playerTeams,
   numBoardSections,
-  playerColors 
+  playerColors,
+  isMultiplayer = false,
+  multiplayerGameId,
+  currentPlayerName,
 }) => {
   // Initialize game state
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -223,7 +230,62 @@ const GameController: React.FC<GameControllerProps> = ({
     console.log(`[DEBUG] ${logMessage}`);
     setDebugLogs(prev => [...prev, logMessage]);
   };
-  
+
+  // Determine if it's the current player's turn in multiplayer mode
+  const isMyTurn = useCallback(() => {
+    if (!isMultiplayer || !currentPlayerName) return true;
+    return currentPlayer?.name === currentPlayerName;
+  }, [isMultiplayer, currentPlayerName, currentPlayer]);
+
+  // Multiplayer: sync game state with server
+  useEffect(() => {
+    if (!isMultiplayer || !multiplayerGameId) return;
+
+    // Start polling for game state updates
+    const stopPolling = gameApi.startPolling((serverGameState) => {
+      if (serverGameState && serverGameState.phase === 'playing') {
+        // Only update if the server state is different (e.g., different turn)
+        if (serverGameState.currentPlayerIndex !== gameState.currentPlayerIndex ||
+            serverGameState.moves?.length !== gameState.moves?.length) {
+          setGameState(serverGameState);
+        }
+      }
+    }, 1500);
+
+    return () => {
+      stopPolling();
+    };
+  }, [isMultiplayer, multiplayerGameId]);
+
+  // Multiplayer: push game state to server after local changes
+  const syncToServer = useCallback(async (newGameState: GameState) => {
+    if (!isMultiplayer || !multiplayerGameId) return;
+
+    try {
+      await gameApi.updateGameState(newGameState, multiplayerGameId);
+    } catch (error) {
+      console.error('Failed to sync game state to server:', error);
+    }
+  }, [isMultiplayer, multiplayerGameId]);
+
+  // Track the last synced state to avoid unnecessary syncs
+  const lastSyncedState = useRef<string>('');
+
+  // Sync game state to server when it changes (for multiplayer)
+  useEffect(() => {
+    if (!isMultiplayer || !multiplayerGameId) return;
+    if (gameState.phase !== 'playing') return;
+
+    // Create a simple hash of the game state to detect changes
+    const stateHash = `${gameState.currentPlayerIndex}-${gameState.moves?.length || 0}`;
+
+    // Only sync if the state has actually changed
+    if (stateHash !== lastSyncedState.current) {
+      lastSyncedState.current = stateHash;
+      syncToServer(gameState);
+    }
+  }, [gameState, isMultiplayer, multiplayerGameId, syncToServer]);
+
   useEffect(() => {
     // Create initial floating elements
     const elements: FloatingElement[] = [];
@@ -2646,33 +2708,44 @@ const GameController: React.FC<GameControllerProps> = ({
         </div>
         
         <div className="bottom-panel">
-          <div 
+          <div
             className="player-turn-indicator"
-            style={{ 
+            style={{
               color: playerColors[gameState?.players[gameState?.currentPlayerIndex]?.id],
-              textShadow: `0 2px 4px rgba(0, 0, 0, 0.5), 0 0 10px ${playerColors[gameState?.players[gameState?.currentPlayerIndex]?.id]}` 
+              textShadow: `0 2px 4px rgba(0, 0, 0, 0.5), 0 0 10px ${playerColors[gameState?.players[gameState?.currentPlayerIndex]?.id]}`
             }}
           >
-            {gameState?.players[gameState?.currentPlayerIndex]?.name}'s Turn
+            {isMultiplayer && !isMyTurn() ? (
+              <span className="waiting-turn">
+                Waiting for {gameState?.players[gameState?.currentPlayerIndex]?.name}...
+              </span>
+            ) : (
+              <span>{gameState?.players[gameState?.currentPlayerIndex]?.name}'s Turn</span>
+            )}
+            {isMultiplayer && isMyTurn() && (
+              <span className="your-turn-badge">Your Turn!</span>
+            )}
           </div>
-          
-          <div className="controls-container">
-            <CardHand 
-              cards={gameState?.players[gameState?.currentPlayerIndex]?.hand}
+
+          <div className={`controls-container ${isMultiplayer && !isMyTurn() ? 'disabled' : ''}`}>
+            <CardHand
+              cards={isMultiplayer && !isMyTurn()
+                ? [] // Hide cards when not your turn in multiplayer
+                : gameState?.players[gameState?.currentPlayerIndex]?.hand}
               selectedCardId={selectedCardId}
-              onCardSelect={handleCardSelect}
+              onCardSelect={isMyTurn() ? handleCardSelect : () => {}}
             />
-            
+
             <div className="zoom-controls">
               <button className="zoom-button" onClick={handleZoomIn}>+</button>
               <div className="zoom-level">{Math.round(zoomLevel * 100)}%</div>
-              <button className="zoom-button" onClick={handleZoomOut}>−</button>
+              <button className="zoom-button" onClick={handleZoomOut}>-</button>
             </div>
           </div>
-          
+
           <div className="turn-controls">
-            {canUseDiscardButton(gameState, gameState?.players[gameState?.currentPlayerIndex]) && (
-              <button 
+            {isMyTurn() && canUseDiscardButton(gameState, gameState?.players[gameState?.currentPlayerIndex]) && (
+              <button
                 className="discard-hand-button"
                 onClick={handleDiscardAndRedraw}
               >
@@ -2680,6 +2753,13 @@ const GameController: React.FC<GameControllerProps> = ({
               </button>
             )}
           </div>
+
+          {isMultiplayer && !isMyTurn() && (
+            <div className="multiplayer-wait-message">
+              <div className="wait-spinner"></div>
+              <span>Waiting for other player to make their move...</span>
+            </div>
+          )}
         </div>
         
         {gameState?.phase === 'gameOver' && (

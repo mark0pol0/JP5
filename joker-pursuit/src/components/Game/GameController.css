@@ -985,4 +985,72 @@ input:checked + .dev-slider:before {
 
 .move-pegs-button.active:hover {
   background-color: #E64A19;
+}
+
+/* Multiplayer UI Styles */
+.waiting-turn {
+  opacity: 0.8;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.your-turn-badge {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 4px 12px;
+  background: linear-gradient(180deg, #4CAF50 0%, #388E3C 100%);
+  border-radius: 20px;
+  font-size: 0.8em;
+  font-weight: bold;
+  animation: bounce 0.5s ease-in-out;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.controls-container.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.multiplayer-wait-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(255, 152, 0, 0.2);
+  border: 1px solid rgba(255, 152, 0, 0.4);
+  border-radius: 8px;
+  color: #FF9800;
+  font-size: 0.95rem;
+}
+
+.wait-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 152, 0, 0.3);
+  border-top-color: #FF9800;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 } 
