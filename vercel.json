@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "build",
+  "installCommand": "cd joker-pursuit && npm install",
+  "buildCommand": "cd joker-pursuit && npm run build",
+  "outputDirectory": "joker-pursuit/build",
   "rewrites": [
     {
       "source": "/api/(.*)",
